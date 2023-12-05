@@ -1,4 +1,4 @@
-# pyLoggy-revised
+# PyLoggy3
 Python3 version of PyLoggy
 
 ## Installation Instructions
