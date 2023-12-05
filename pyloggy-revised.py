@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 import sys
 import win32api,pythoncom
 import pyHook,os,time,random,smtplib,string,base64
